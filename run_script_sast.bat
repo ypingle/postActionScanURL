@@ -1,7 +1,7 @@
 @echo off
 
 REM Please modify the CD command to your relevant SAST installation location
-rem cd /d "C:\Program Files\Checkmarx\Executables"
+cd /d "C:\Program Files\Checkmarx\Executables"
 
 REM Initialize the log file with a timestamp
 set LogFile="errors_log.txt"
@@ -22,8 +22,7 @@ IF "%XMLReportFileName%"=="" (
     echo %date% %time% - Error: XML file "%XMLReportFileName%" not found. >> %LogFile%
     exit /b
 ) ELSE IF "%EmailRecipients%"=="" (
-    echo %date% %time% - Error: No Email Recipients found >> %LogFile%
-    exit /b
+    py "%~dp0extract_attribute_value.py" "%XMLReportFileName%" 
 ) ELSE (
     REM Call the Python script passing XML report location and Email Recipients as arguments
     py "%~dp0extract_attribute_value.py" "%XMLReportFileName%" "%EmailRecipients%" 2>> %LogFile%

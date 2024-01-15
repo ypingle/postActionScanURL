@@ -1,10 +1,14 @@
 # Configuration file
 SMTP_server: smtp.org.com
-SMTP_port: 587
-SMTP_tls: tls
-SMTP_user: smtpUser
-SMTP_password: smtpPassword
+SMTP_port: 25
+SMTP_tls: 
+SMTP_user: 
+SMTP_password: 
 Email_from: user@org.com
 Email_subject: New Checkmarx Scan is done!
 Email_body: "Scan results URL:"
+SAST_url: Chckmarx_server_URL
+SAST_username: admin   
+SAST_password: Aa12345678!
+
 
