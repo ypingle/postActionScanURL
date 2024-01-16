@@ -53,141 +53,138 @@ def send_email(sender, email_recipients, subject, body):
         smtp_obj.sendmail(sender, recipients, message.as_string())  # Send email to all recipients
          
         smtp_obj.quit()
-        print("Email sent successfully!")
     except Exception as e:
         print(f"Error: {e}", file=sys.stderr)
         sys.exit(1)
 
 def SAST_get_access_token():
     try:
-        payload = 'scope=access_control_api&client_id=resource_owner_client&grant_type=password&client_secret=014DF517-39D1-4453-B7B3-9930C563627C&username=' + SAST_username + '&password=' + SAST_password
-        headers = {
-        'Content-Type': 'application/x-www-form-urlencoded'
+        payload = {
+            'scope': 'access_control_api',
+            'client_id': 'resource_owner_client',
+            'grant_type': 'password',
+            'client_secret': '014DF517-39D1-4453-B7B3-9930C563627C',
+            'username': SAST_username,
+            'password': SAST_password
         }
 
-        response = requests.request("POST", SAST_url + '/CxRestAPI/auth/identity/connect/token', headers=headers, data=payload)
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
 
-#        print('get_SAST_access_token - token = ' + response.text)
-        response_json = response.json()
-        access_token = response_json['access_token']
+        response = requests.post(
+            f"{SAST_url}/CxRestAPI/auth/identity/connect/token",
+            headers=headers,
+            data=payload
+        )
+
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
+        access_token = response.json().get('access_token', '')
+
+    except requests.exceptions.RequestException as e:
+        print(f"Exception: SAST_get_access_token - {e}")
+        return ""
     except Exception as e:
-        print("Exception: get access token failed:", str(e))
+        print(f"Exception: SAST_get_access_token - {e}")
         return ""
     else:
         return access_token
 
 def SAST_get_teams(access_token):
     try:
-        payload = {}
-        headers = {
-        'Authorization': 'Bearer ' + access_token
-        }
+        headers = {'Authorization': f'Bearer {access_token}'}
+        url = f"{SAST_url}/CxRestAPI/auth/teams"
 
-        url = SAST_url + "/CxRestAPI/auth/teams"
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
+        teams_json = response.json()
 
-        response = requests.request("GET", url, headers=headers, data=payload)
-        response_json = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Exception: SAST_get_teams - {e}")
+        return []
     except Exception as e:
-        print("Exception: SAST_get_projects:", str(e))
-        return ""
+        print(f"Exception: SAST_get_teams - {e}")
+        return []
     else:
-        return response_json
+        return teams_json
 
-def SAST_get_team_members(access_token, teamId):
+def SAST_get_team_members(access_token, team_id):
     try:
-        payload = {}
-        headers = {
-        'Authorization': 'Bearer ' + access_token
-        }
+        headers = {'Authorization': 'Bearer ' + access_token}
+        url = f"{SAST_url}/CxRestAPI/auth/teams/{team_id}/Users"
 
-        url = SAST_url + "/CxRestAPI/auth/teams/" + str(teamId) + "/Users"
-
-        response = requests.request("GET", url, headers=headers, data=payload)
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
         response_json = response.json()
+    except requests.exceptions.RequestException as e:
+        print(f"Exception: SAST_get_team_members - {e}")
+        return []
     except Exception as e:
-        print("Exception: SAST_get_team_members:", str(e))
-        return ""
+        print(f"Exception: SAST_get_team_members - {e}")
+        return []
     else:
         return response_json
 
-def get_email_recepients_from_team(xmlteamFullPath):
+def get_team_email_recipients(xml_team_full_path):
     try:
         access_token = SAST_get_access_token()
-        if(access_token != ""):
-            teams_list = SAST_get_teams(access_token)
 
-        TeamID = 0
-        print('team list:')
+        if not access_token:
+            return ""
 
+        teams_list = SAST_get_teams(access_token)
+        team_id = 0
+
+        print('Team list:')
         for team in teams_list:
-            print('id: ' + str(team['id']) + ' name: ' + team['fullName'])
-            tmpSASTTeam = team['fullName']
+            team_name = team['fullName'].lstrip('/')
+            print(f'id: {team["id"]} name: {team_name}')
 
-            if tmpSASTTeam.startswith('/'):
-                SASTTeam = tmpSASTTeam.lstrip('/')
-            else:
-                SASTTeam = tmpSASTTeam
-
-            xmlteamFullPath = xmlteamFullPath.replace('\\', '/')
-
-            if(SASTTeam == xmlteamFullPath):
-                TeamID = team['id']
-                print('team match found: ' + SASTTeam)
+            if team_name == xml_team_full_path.replace('\\','/'):
+                team_id = team['id']
+                print('Team match found:', team_name)
                 break
-        if(TeamID > 0):
-            teamMembers = SAST_get_team_members(access_token, TeamID)        
 
-            email_recipients = ''
-            for member in teamMembers:
-                if email_recipients == '':
-                    email_recipients = member['email']
-                else:
-                    email_recipients += ',' + member['email']
+        if team_id > 0:
+            team_members = SAST_get_team_members(access_token, team_id)
+            email_recipients = ','.join(member['email'] for member in team_members)
+            return email_recipients
+
     except Exception as e:
-        print("Exception: get_email_recepients_from_team:", str(e))
+        print("Exception: get_email_recipients_from_team:", str(e))
         return ""
-    else:
-        return email_recipients
 
-
-def main(): 
-
+def main():
     try:
         if len(sys.argv) < 2:
-            print("Usage: python script_name.py <path_to_xml_file> <optional:email receipeint>")
+            print("Usage: python script_name.py <path_to_xml_file> <optional:email_recipient>")
             return
-        
+
         xml_file_path = sys.argv[1]
 
         with open(xml_file_path, 'r', encoding='utf-8') as file:
             xml_content = file.read()
 
-        if len(sys.argv) == 3:
-            email_recipients = sys.argv[2]
-        else:
-            Team_attribute = "TeamFullPathOnReportDate"
-            team = extract_attribute_from_xml(xml_content, Team_attribute)
-            print('team in scan xml: ' + team)
-            email_recipients = get_email_recepients_from_team(team)    
-        
-        print('email_receipients: ' + email_recipients)
+        team_attribute = "TeamFullPathOnReportDate"
+        email_recipients = sys.argv[2] if len(sys.argv) == 3 else get_team_email_recipients(extract_attribute_from_xml(xml_content, team_attribute))
+
+        print('email_recipients:', email_recipients)
 
         # Specify the attribute you want to extract (e.g., "DeepLink")
         deeplink_attribute = "DeepLink"
         # Extract the value of the specified attribute from the XML content
-        deepLink = extract_attribute_from_xml(xml_content, deeplink_attribute)
+        deep_link = extract_attribute_from_xml(xml_content, deeplink_attribute)
 
         # Set email variables
         email_from = Email_from
         email_subject = Email_subject
-        email_body = Email_body + "\n" + deepLink
+        email_body = f"{Email_body}\n{deep_link}"
+
         # Send email
         send_email(email_from, email_recipients, email_subject, email_body)
+        
     except Exception as e:
         print("Exception: main:", str(e))
-        return ""
     else:
-        return
+        print("Email sent successfully.")
 
 if __name__ == "__main__":
     main()
