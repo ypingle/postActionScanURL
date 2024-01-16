@@ -21,6 +21,10 @@ Email_body = config['Email_body']
 SAST_url = config['SAST_url']
 SAST_username = config['SAST_username']
 SAST_password = config['SAST_password']
+SAST_proxy = config['SAST_proxy']
+proxy_servers = {
+   'https': SAST_proxy
+}
 
 # Function to extract attribute from XML
 
@@ -73,7 +77,9 @@ def SAST_get_access_token():
         response = requests.post(
             f"{SAST_url}/CxRestAPI/auth/identity/connect/token",
             headers=headers,
-            data=payload
+            data=payload,
+            verify=False, 
+            proxies=proxy_servers
         )
 
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
@@ -93,7 +99,7 @@ def SAST_get_teams(access_token):
         headers = {'Authorization': f'Bearer {access_token}'}
         url = f"{SAST_url}/CxRestAPI/auth/teams"
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, verify=False, proxies=proxy_servers)
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
         teams_json = response.json()
 
@@ -111,7 +117,7 @@ def SAST_get_team_members(access_token, team_id):
         headers = {'Authorization': 'Bearer ' + access_token}
         url = f"{SAST_url}/CxRestAPI/auth/teams/{team_id}/Users"
 
-        response = requests.get(url, headers=headers)
+        response = requests.get(url, headers=headers, verify=False, proxies=proxy_servers)
         response.raise_for_status()  # Raise HTTPError for bad responses (4xx and 5xx)
         response_json = response.json()
     except requests.exceptions.RequestException as e:
